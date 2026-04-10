@@ -428,7 +428,7 @@ func _inject_stock_ui():
 
 	var buttonsContainer = supplyButton.get_parent()
 	if buttonsContainer:
-		buttonsContainer.columns = 3
+		buttonsContainer.columns = 4
 		_stockButton = Button.new()
 		_stockButton.text = "Stock"
 		_stockButton.toggle_mode = true
@@ -438,7 +438,27 @@ func _inject_stock_ui():
 		_stockButton.pressed.connect(_on_stock_pressed)
 		buttonsContainer.add_child(_stockButton)
 
+		var refreshButton = Button.new()
+		refreshButton.text = "Refresh"
+		refreshButton.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		refreshButton.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		refreshButton.pressed.connect(_on_refresh_pressed)
+		buttonsContainer.add_child(refreshButton)
+
 	_uiInjected = true
+
+func _on_refresh_pressed():
+	if !trader:
+		return
+	# If viewing stock, switch back to supply first
+	if _stockVisible:
+		_restore_supply()
+		_stockVisible = false
+		supplyButton.button_pressed = true
+	# Force trader to create new supply
+	trader.CreateSupply()
+	Resupply()
+	PlayClick()
 
 func _on_stock_pressed():
 	tasksUI.hide()

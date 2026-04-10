@@ -6,10 +6,7 @@ var _repLabel: Label = null
 var _stockVisible = false
 var _uiInjected = false
 var _savedSupply: Array = []  # Cache of normal supply when viewing stock
-var _cashAvailable = false
-var _inOurReset = false  # True when we're calling ResetTrading ourselves
-var _lastKnownSupplyCount: int = -1
-var _lastKnownInvCount: int = -1
+var _cashHooked = false
 
 func _get_ti():
 	if Engine.has_meta("TraderImprovements"):
@@ -363,21 +360,37 @@ func _find_item_data_by_file(file_name: String) -> ItemData:
 # --- Override: Add rep on trade completion ---
 
 func CompleteDeal():
-	# Flag stays true until after _on_accept_pressed calls ResetTrading
-	_inOurReset = true
 	super()
 	var ti = _get_ti()
 	if ti and trader:
 		ti.add_rep(trader.traderData.name, 1)
 		UpdateTraderInfo()
-	# Defer clearing the flag so the ResetTrading call from _on_accept_pressed
-	# still sees _inOurReset = true
-	call_deferred("_clear_our_reset")
 
-func _clear_our_reset():
-	_inOurReset = false
-	_lastKnownSupplyCount = supplyGrid.get_child_count()
-	_lastKnownInvCount = inventoryGrid.get_child_count()
+# --- Cash System signal hooks ---
+
+func _hook_cash_system():
+	if _cashHooked:
+		return
+	var cash = Engine.get_meta("CashMain", null)
+	if !cash:
+		return
+	if cash.has_signal("cash_sold"):
+		cash.cash_sold.connect(_on_cash_sold)
+	if cash.has_signal("cash_bought"):
+		cash.cash_bought.connect(_on_cash_bought)
+	_cashHooked = true
+
+func _on_cash_sold(amount: int, items: Array):
+	var ti = _get_ti()
+	if ti and trader:
+		ti.add_rep(trader.traderData.name, 1)
+		UpdateTraderInfo()
+
+func _on_cash_bought(amount: int, items: Array):
+	var ti = _get_ti()
+	if ti and trader:
+		ti.add_rep(trader.traderData.name, 1)
+		UpdateTraderInfo()
 
 # --- Override: Add Stock button alongside Supply ---
 
@@ -387,39 +400,15 @@ func Open():
 	if _stockButton:
 		_stockButton.hide()
 	_stockVisible = false
-	_inOurReset = true
 	super()
-	_inOurReset = false
 	if trader and _stockButton:
 		_stockButton.show()
-	_cashAvailable = Engine.has_meta("CashMain")
-
-func _physics_process(delta):
-	super(delta)
-	# Continuously snapshot counts while trading so we always have
-	# the "before" state when ResetTrading is called
-	if gameData.isTrading and trader and !_inOurReset:
-		_lastKnownSupplyCount = supplyGrid.get_child_count()
-		_lastKnownInvCount = inventoryGrid.get_child_count()
-
-func ResetTrading():
-	if gameData.isTrading and trader and !_inOurReset and _cashAvailable:
-		var supplyNow = supplyGrid.get_child_count()
-		var invNow = inventoryGrid.get_child_count()
-		var supplyChanged = _lastKnownSupplyCount >= 0 and supplyNow != _lastKnownSupplyCount
-		var invChanged = _lastKnownInvCount >= 0 and invNow != _lastKnownInvCount
-		if supplyChanged or invChanged:
-			var ti = _get_ti()
-			if ti:
-				ti.add_rep(trader.traderData.name, 1)
-				UpdateTraderInfo()
-	super()
+	_hook_cash_system()
 
 func Close():
 	if _stockVisible:
 		_restore_supply()
 	_stockVisible = false
-	_cashAvailable = false
 	super()
 
 func _inject_stock_ui():
@@ -463,9 +452,7 @@ func _on_refresh_pressed():
 func _on_stock_pressed():
 	tasksUI.hide()
 	supplyUI.show()
-	_inOurReset = true
 	ResetTrading()
-	_inOurReset = false
 	ResetInput()
 
 	if !_stockVisible:
@@ -512,13 +499,9 @@ func _fill_stock_grid():
 func _on_supply_pressed():
 	if _stockVisible:
 		_restore_supply()
-	_inOurReset = true
 	super()
-	_inOurReset = false
 
 func _on_tasks_pressed():
 	if _stockVisible:
 		_restore_supply()
-	_inOurReset = true
 	super()
-	_inOurReset = false

@@ -1,0 +1,10 @@
+[mod]
+name="Trader Improvements"
+id="trader-improvements"
+version="1.0.0"
+
+[autoload]
+TraderImprovementsBoot="res://TraderImprovements/Main.gd"
+
+[updates]
+modworkshop=55972

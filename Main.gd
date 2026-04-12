@@ -3,7 +3,8 @@ extends Node
 var gameData = preload("res://Resources/GameData.tres")
 var LT_Master: LootTable = preload("res://Loot/LT_Master.tres")
 
-const SAVE_PATH = "user://TraderImprovements.cfg"
+const SAVE_PATH = "user://TraderImprovements.tres"
+const LEGACY_CFG_PATH = "user://TraderImprovements.cfg"
 
 # Rep data per trader
 var _rep: Dictionary = {}
@@ -27,6 +28,28 @@ func _ready():
 	_build_item_pools()
 	Engine.set_meta("TraderImprovements", self)
 	print("Trader Improvements: Loaded")
+
+var _was_dead = false
+
+func _process(_delta):
+	# Clear in-memory state on permadeath so FormatSave's deletion sticks
+	if gameData.isDead and !_was_dead:
+		_was_dead = true
+		if gameData.permadeath:
+			_rep.clear()
+			_dailyCompleted.clear()
+			_dailySeed = 0
+			_notedDailies.clear()
+			print("Trader Improvements: Cleared on permadeath")
+	elif !gameData.isDead:
+		if _was_dead:
+			# Returning from death screen - reload fresh data (should be empty after FormatSave)
+			_load_data()
+			if _dailySeed == 0:
+				_dailySeed = randi()
+				_save_data()
+		_was_dead = false
+
 
 func overrideScript(modded_path: String):
 	var script: Script = load(modded_path)
@@ -372,6 +395,13 @@ func _save_data():
 	cfg.save(SAVE_PATH)
 
 func _load_data():
+	# Migrate from old .cfg path
+	if !FileAccess.file_exists(SAVE_PATH) and FileAccess.file_exists(LEGACY_CFG_PATH):
+		var dir = DirAccess.open("user://")
+		if dir:
+			dir.rename("TraderImprovements.cfg", "TraderImprovements.tres")
+			print("Trader Improvements: Migrated .cfg to .tres")
+
 	var cfg = ConfigFile.new()
 	if cfg.load(SAVE_PATH) != OK:
 		return

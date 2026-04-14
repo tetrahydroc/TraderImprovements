@@ -5,6 +5,7 @@ version="1.0.3"
 
 [autoload]
 TraderImprovementsBoot="res://TraderImprovements/Main.gd"
+TraderImprovementsConfig="res://TraderImprovements/Config.gd"
 
 [updates]
 modworkshop=55972

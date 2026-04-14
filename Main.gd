@@ -106,17 +106,20 @@ func add_rep(trader_name: String, amount: int):
 	_rep[trader_name] = get_rep(trader_name) + amount
 	_save_data()
 
+var _tiSettings = preload("res://TraderImprovements/TISettings.tres")
+
 func get_rep_tier(trader_name: String) -> int:
 	var rep = get_rep(trader_name)
-	if rep >= 100:
+	var thresholds = _tiSettings.repThresholds.get(trader_name, [5, 15, 30, 60, 100])
+	if rep >= thresholds[4]:
 		return 5
-	elif rep >= 60:
+	elif rep >= thresholds[3]:
 		return 4
-	elif rep >= 30:
+	elif rep >= thresholds[2]:
 		return 3
-	elif rep >= 15:
+	elif rep >= thresholds[1]:
 		return 2
-	elif rep >= 5:
+	elif rep >= thresholds[0]:
 		return 1
 	return 0
 

@@ -2,7 +2,11 @@ extends "res://Scripts/Interface.gd"
 
 # UI elements we create
 var _stockButton: Button = null
+var _refreshButton: Button = null
 var _repLabel: Label = null
+var _tiSettings = preload("res://TraderImprovements/TISettings.tres")
+var _refreshCooldownTimer: float = 0.0
+var _stockCooldowns: Dictionary = {}
 var _stockVisible = false
 var _uiInjected = false
 var _savedSupply: Array = []  # Cache of normal supply when viewing stock
@@ -360,11 +364,20 @@ func _find_item_data_by_file(file_name: String) -> ItemData:
 # --- Override: Add rep on trade completion ---
 
 func CompleteDeal():
+	var bought = []
+	if _stockVisible:
+		for element in supplyGrid.get_children():
+			if element.selected and element.slotData and element.slotData.itemData:
+				bought.append(element.slotData.itemData.file)
 	super()
 	var ti = _get_ti()
 	if ti and trader:
 		ti.add_rep(trader.traderData.name, 1)
 		UpdateTraderInfo()
+	if _stockVisible:
+		_add_stock_cooldowns(bought)
+		ClearSupplyGrid()
+		_fill_stock_grid()
 
 # --- Cash System signal hooks ---
 
@@ -391,6 +404,26 @@ func _on_cash_bought(amount: int, items: Array):
 	if ti and trader:
 		ti.add_rep(trader.traderData.name, 1)
 		UpdateTraderInfo()
+	if _stockVisible:
+		var bought = []
+		for item in items:
+			if item and "slotData" in item and item.slotData and item.slotData.itemData:
+				bought.append(item.slotData.itemData.file)
+			elif item is SlotData and item.itemData:
+				bought.append(item.itemData.file)
+			elif item is ItemData:
+				bought.append(item.file)
+		_add_stock_cooldowns(bought)
+		ClearSupplyGrid()
+		_fill_stock_grid()
+
+func _add_stock_cooldowns(bought):
+	var cooldown = _tiSettings.stockReplenishCooldown
+	if cooldown <= 0:
+		return
+	var now = Time.get_ticks_msec()
+	for file_name in bought:
+		_stockCooldowns[file_name] = now + cooldown * 1000.0
 
 # --- Override: Add Stock button alongside Supply ---
 
@@ -402,7 +435,28 @@ func Open():
 	_stockVisible = false
 	super()
 	if trader and _stockButton:
-		_stockButton.show()
+		if _tiSettings.stockReplenishCooldown >= 0:
+			_stockButton.show()
+		else:
+			_stockButton.hide()
+	# Show/hide/create refresh button based on current MCM setting
+	if _tiSettings.refreshCooldown >= 0:
+		if !_refreshButton and _uiInjected:
+			# Setting changed from disabled to enabled - create button now
+			var buttonsContainer = supplyButton.get_parent()
+			if buttonsContainer:
+				buttonsContainer.columns = 4
+				_refreshButton = Button.new()
+				_refreshButton.text = "Refresh"
+				_refreshButton.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				_refreshButton.size_flags_vertical = Control.SIZE_EXPAND_FILL
+				_refreshButton.pressed.connect(_on_refresh_pressed)
+				buttonsContainer.add_child(_refreshButton)
+		if _refreshButton:
+			_refreshButton.show()
+	else:
+		if _refreshButton:
+			_refreshButton.hide()
 	_hook_cash_system()
 
 func Close():
@@ -427,17 +481,24 @@ func _inject_stock_ui():
 		_stockButton.pressed.connect(_on_stock_pressed)
 		buttonsContainer.add_child(_stockButton)
 
-		var refreshButton = Button.new()
-		refreshButton.text = "Refresh"
-		refreshButton.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		refreshButton.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		refreshButton.pressed.connect(_on_refresh_pressed)
-		buttonsContainer.add_child(refreshButton)
+		if _tiSettings.refreshCooldown >= 0:
+			_refreshButton = Button.new()
+			_refreshButton.text = "Refresh"
+			_refreshButton.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			_refreshButton.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			_refreshButton.pressed.connect(_on_refresh_pressed)
+			buttonsContainer.add_child(_refreshButton)
+		else:
+			# -1 = disabled, keep 3 columns
+			buttonsContainer.columns = 3
 
 	_uiInjected = true
 
 func _on_refresh_pressed():
 	if !trader:
+		return
+	# Check cooldown
+	if _tiSettings.refreshCooldown > 0 and _refreshCooldownTimer > 0:
 		return
 	# If viewing stock, switch back to supply first
 	if _stockVisible:
@@ -448,6 +509,45 @@ func _on_refresh_pressed():
 	trader.CreateSupply()
 	Resupply()
 	PlayClick()
+	# Start cooldown
+	if _tiSettings.refreshCooldown > 0 and _refreshButton:
+		_refreshCooldownTimer = _tiSettings.refreshCooldown
+		_refreshButton.disabled = true
+		_refreshButton.text = str(_tiSettings.refreshCooldown) + "s"
+
+func _physics_process(delta):
+	super(delta)
+
+	# Check if MCM settings changed - reset cooldown timer
+	if _tiSettings.has_meta("refresh_changed") and _tiSettings.get_meta("refresh_changed"):
+		_tiSettings.set_meta("refresh_changed", false)
+		_refreshCooldownTimer = 0
+		if _refreshButton:
+			_refreshButton.disabled = false
+			_refreshButton.text = "Refresh"
+
+	# Refresh button cooldown timer
+	if _refreshCooldownTimer > 0 and _refreshButton:
+		_refreshCooldownTimer -= delta
+		if _refreshCooldownTimer <= 0:
+			_refreshCooldownTimer = 0
+			_refreshButton.disabled = false
+			_refreshButton.text = "Refresh"
+		else:
+			_refreshButton.text = str(int(_refreshCooldownTimer)) + "s"
+
+	# Auto-refresh stock when cooldowns expire
+	if _stockVisible and _stockCooldowns.size() > 0:
+		var now = Time.get_ticks_msec()
+		var any_expired = false
+		for file_name in _stockCooldowns:
+			if now >= _stockCooldowns[file_name]:
+				any_expired = true
+				break
+		if any_expired:
+			ClearSupplyGrid()
+			_fill_stock_grid()
+
 
 func _on_stock_pressed():
 	tasksUI.hide()
@@ -481,10 +581,25 @@ func _fill_stock_grid():
 	if !ti or !trader:
 		return
 
+	var now = Time.get_ticks_msec()
+
+	# Clean up expired cooldowns
+	var expired = []
+	for file_name in _stockCooldowns:
+		if now >= _stockCooldowns[file_name]:
+			expired.append(file_name)
+	for file_name in expired:
+		_stockCooldowns.erase(file_name)
+
 	var tier = ti.get_rep_tier(trader.traderData.name)
 	var stock_files = ti.get_stock_items(trader.traderData.name, tier)
 
+	var stock_map: Dictionary = {}
 	for file_name in stock_files:
+		if _stockCooldowns.has(file_name):
+			continue
+		if stock_map.has(file_name):
+			continue
 		var item_data = _find_item_data_by_file(file_name)
 		if item_data:
 			var sd = SlotData.new()
@@ -492,7 +607,10 @@ func _fill_stock_grid():
 			sd.condition = 100
 			if item_data.stackable and item_data.defaultAmount > 0:
 				sd.amount = item_data.defaultAmount
-			Create(sd, supplyGrid, false)
+			stock_map[file_name] = sd
+
+	for file_name in stock_map:
+		Create(stock_map[file_name], supplyGrid, false)
 
 # --- Supply/Tasks button presses need to hide stock ---
 

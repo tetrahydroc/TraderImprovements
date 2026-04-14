@@ -42,6 +42,7 @@ jobs:
           cp mod.txt build/mod.txt
           mkdir -p build/TraderImprovements
           cp *.gd build/TraderImprovements/ 2>/dev/null || true
+          cp *.tres build/TraderImprovements/ 2>/dev/null || true
           cd build
           zip -r ../TraderImprovements.vmz mod.txt TraderImprovements/
 

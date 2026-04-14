@@ -1,7 +1,7 @@
 [mod]
 name="Trader Improvements"
 id="trader-improvements"
-version="1.0.4"
+version="1.0.5"
 
 [autoload]
 TraderImprovementsBoot="res://TraderImprovements/Main.gd"

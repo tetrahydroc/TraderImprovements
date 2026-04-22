@@ -1,11 +1,20 @@
 [mod]
-name="Trader Improvements"
-id="trader-improvements"
-version="1.0.5"
+name="Trader Improvements V2"
+id="trader-improvements-v2"
+version="2.0.0"
 
 [autoload]
-TraderImprovementsBoot="res://TraderImprovements/Main.gd"
-TraderImprovementsConfig="res://TraderImprovements/Config.gd"
+TraderImprovementsV2Boot="res://TraderImprovementsV2/Main.gd"
+TraderImprovementsV2Config="res://TraderImprovementsV2/Config.gd"
+
+[rtvmodlib]
+needs="interface,task,trader,ai"
+
+[hooks]
+"res://Scripts/Interface.gd" = "_on_supply_pressed, _on_tasks_pressed, _physics_process, close, completedeal, initializenotes, initializetasks, open, updatetraderinfo"
+"res://Scripts/Task.gd" = "completed"
+"res://Scripts/Trader.gd" = "completetask"
+"res://Scripts/AI.gd" = "death"
 
 [updates]
 modworkshop=55972

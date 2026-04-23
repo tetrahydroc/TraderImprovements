@@ -1,11 +1,11 @@
 [mod]
-name="Trader Improvements V2"
-id="trader-improvements-v2"
+name="Trader Improvements"
+id="trader-improvements"
 version="2.0.0"
 
 [autoload]
-TraderImprovementsV2Boot="res://TraderImprovementsV2/Main.gd"
-TraderImprovementsV2Config="res://TraderImprovementsV2/Config.gd"
+TraderImprovementsBoot="res://TraderImprovements/Main.gd"
+TraderImprovementsConfig="res://TraderImprovements/Config.gd"
 
 [rtvmodlib]
 needs="interface,task,trader,ai"

@@ -1,7 +1,7 @@
 extends Node
 
 var McmHelpers = load("res://ModConfigurationMenu/Scripts/Doink Oink/MCM_Helpers.tres")
-var settings = preload("res://TraderImprovementsV2/TISettings.tres")
+var settings = preload("res://TraderImprovements/TISettings.tres")
 
 var config = ConfigFile.new()
 

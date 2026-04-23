@@ -23,7 +23,7 @@ var _stockButton: Button = null
 var _refreshButton: Button = null
 var _repairButton: Button = null
 var _repLabel: Label = null
-var _tiSettings = preload("res://TraderImprovementsV2/TISettings.tres")
+var _tiSettings = preload("res://TraderImprovements/TISettings.tres")
 var _refreshCooldownTimer: float = 0.0
 var _stockCooldowns: Dictionary = {}
 var _stockVisible = false
@@ -2326,7 +2326,7 @@ func get_stock_items(trader_name, tier):
 # --- Persistence ---
 
 func _save_data():
-	var SaveScript = load("res://TraderImprovementsV2/TISave.gd")
+	var SaveScript = load("res://TraderImprovements/TISave.gd")
 	var save = SaveScript.new()
 	save.rep = _rep.duplicate()
 	save.daily_seed = _dailySeed

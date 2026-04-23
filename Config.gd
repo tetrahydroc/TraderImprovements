@@ -1,7 +1,7 @@
 extends Node
 
 var McmHelpers = load("res://ModConfigurationMenu/Scripts/Doink Oink/MCM_Helpers.tres")
-var settings = preload("res://TraderImprovements/TISettings.tres")
+var settings = preload("res://TraderImprovementsV2/TISettings.tres")
 
 var config = ConfigFile.new()
 
@@ -12,17 +12,18 @@ const TIER_NAMES = ["Acquaintance", "Trusted", "Reliable", "Valued", "Partner"]
 const TRADERS = ["Generalist", "Doctor", "Gunsmith"]
 
 func _ready() -> void:
-	config.set_value("Category", "Settings", {
-		"menu_pos" = 0
-	})
+	var mcm_has_callbacks = McmHelpers != null and McmHelpers.has_method("GetModConfigFileName")
 
-	config.set_value("Dropdown", "refreshMode", {
+	if mcm_has_callbacks:
+		config.set_value("Category", "Settings", { "menu_pos" = 0 })
+		config.set_value("Category", "Reputation Thresholds", { "menu_pos" = 1 })
+
+	var refresh_dict = {
 		"name" = "Refresh Button",
 		"tooltip" = "Controls the trader refresh button behavior",
 		"default" = 1,
 		"value" = 1,
 		"menu_pos" = 0,
-		"category" = "Settings",
 		"options" = [
 			"Disabled",
 			"Unlimited",
@@ -38,15 +39,17 @@ func _ready() -> void:
 			"12 Hours",
 			"24 Hours"
 		]
-	})
+	}
+	if mcm_has_callbacks:
+		refresh_dict["category"] = "Settings"
+	config.set_value("Dropdown", "refreshMode", refresh_dict)
 
-	config.set_value("Dropdown", "stockReplenishMode", {
+	var stock_dict = {
 		"name" = "Stock Shop",
 		"tooltip" = "Controls the always-available stock shop. Disabled hides the Stock button entirely. Cooldown options control how long a purchased item takes to reappear.",
 		"default" = 1,
 		"value" = 1,
 		"menu_pos" = 1,
-		"category" = "Settings",
 		"options" = [
 			"Disabled",
 			"Immediate",
@@ -62,11 +65,10 @@ func _ready() -> void:
 			"12 Hours",
 			"24 Hours"
 		]
-	})
-
-	config.set_value("Category", "Reputation Thresholds", {
-		"menu_pos" = 1
-	})
+	}
+	if mcm_has_callbacks:
+		stock_dict["category"] = "Settings"
+	config.set_value("Dropdown", "stockReplenishMode", stock_dict)
 
 	var defaults = [5, 15, 30, 60, 100]
 	var pos = 1
@@ -74,17 +76,19 @@ func _ready() -> void:
 		var trader_name = TRADERS[t]
 		for i in 5:
 			var key = trader_name + "_tier" + str(i + 1)
-			config.set_value("Int", key, {
+			var tier_dict = {
 				"name" = trader_name + " - Tier " + str(i + 1) + " (" + TIER_NAMES[i] + ")",
 				"tooltip" = "Rep needed for " + trader_name + " to reach " + TIER_NAMES[i] + ". Must be less than the next tier.",
 				"default" = defaults[i],
 				"value" = defaults[i],
 				"minRange" = 1,
 				"maxRange" = 1000,
-				"menu_pos" = pos,
-				"on_value_changed" = "on_tier_changed",
-				"category" = "Reputation Thresholds"
-			})
+				"menu_pos" = pos
+			}
+			if mcm_has_callbacks:
+				tier_dict["on_value_changed"] = "on_tier_changed"
+				tier_dict["category"] = "Reputation Thresholds"
+			config.set_value("Int", key, tier_dict)
 			pos += 1
 
 	if McmHelpers != null:
@@ -97,16 +101,23 @@ func _ready() -> void:
 
 		_on_config_updated(config)
 
-		McmHelpers.RegisterConfiguration(
-			MOD_ID,
-			"Trader Improvements",
-			FILE_PATH,
-			"Configure trader improvement settings",
-			{
-				"config.ini" = _on_config_updated
-			},
-			self
-		)
+		if mcm_has_callbacks:
+			McmHelpers.RegisterConfiguration(
+				MOD_ID,
+				"Trader Improvements",
+				FILE_PATH,
+				"Configure trader improvement settings",
+				{ "config.ini" = _on_config_updated },
+				self
+			)
+		else:
+			McmHelpers.RegisterConfiguration(
+				MOD_ID,
+				"Trader Improvements",
+				FILE_PATH,
+				"Configure trader improvement settings",
+				{ "config.ini" = _on_config_updated }
+			)
 
 func on_tier_changed(changed_id: String, new_value, menu):
 	var elements = menu.GetElements()
